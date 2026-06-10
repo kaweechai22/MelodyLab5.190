@@ -690,12 +690,12 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
   const wavelengthPx = 270;
   const k = 2 * Math.PI / wavelengthPx;
 
-  // Split layout in the v5.67-style large canvas
+  // Split layout in the v5.67-style canvas
   const titleY = 34;
   const arrowY = 78;
-  const particleTop = 118;
+  const particleTop = 116;
   const particleAxisY = Math.round(h * 0.52);
-  const particleBottom = particleAxisY - 24;
+  const particleBottom = particleAxisY - 26;
   const curveTop = particleAxisY + 72;
   const curveBottom = h - 52;
   const curveMid = (curveTop + curveBottom) / 2;
@@ -734,97 +734,134 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
 
   // Shared observation line
   ctx.save();
-  ctx.strokeStyle="rgba(255,255,255,.78)";
+  ctx.strokeStyle="rgba(255,83,128,.90)";
   ctx.setLineDash([8,8]);
   ctx.lineWidth=2;
   ctx.beginPath();
-  ctx.moveTo(obsXBase, particleTop - 22);
+  ctx.moveTo(obsXBase, particleTop - 20);
   ctx.lineTo(obsXBase, curveBottom + 4);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle="rgba(255,255,255,.96)";
-  ctx.font="16px Sarabun, system-ui, sans-serif";
+  ctx.fillStyle="rgba(255,230,235,.96)";
+  ctx.font="15px Sarabun, system-ui, sans-serif";
   ctx.textAlign="center";
-  ctx.fillText("ตำแหน่งสังเกต", obsXBase, particleTop-28);
+  ctx.fillText("จุดสังเกต", obsXBase, particleTop-26);
   ctx.restore();
 
-  // Helper: pressure value at coordinate x.
-  // ΔP ∝ cos(kx - wt). Positive = compression/dense. Negative = rarefaction/sparse.
+  // Physics mapping:
+  // ΔP(x,t) ∝ cos(kx - ωt)
+  // Positive pressure = อัด / Compression / dense particles
+  // Negative pressure = ขยาย / Rarefaction / sparse particles
   const pressureAt = (x)=>Math.cos(k*(x-obsXBase)-phase);
 
-  // Draw high/low pressure bands exactly from the pressure function, not a decorative pattern.
+  // Soft high/low pressure glow bands generated from the same pressure function.
   ctx.save();
-  for(let x=xMin; x<=xMax; x+=8){
+  for(let x=xMin; x<=xMax; x+=6){
     const pr = pressureAt(x);
     const alpha = Math.abs(pr);
     const g = ctx.createLinearGradient(x-18,0,x+18,0);
     if(pr >= 0){
       g.addColorStop(0,"rgba(0,0,0,0)");
-      g.addColorStop(.5,`rgba(34,211,238,${0.04 + 0.15*alpha})`);
+      g.addColorStop(.5,`rgba(34,211,238,${0.035 + 0.12*alpha})`);
       g.addColorStop(1,"rgba(0,0,0,0)");
     }else{
       g.addColorStop(0,"rgba(0,0,0,0)");
-      g.addColorStop(.5,`rgba(168,85,247,${0.035 + 0.12*alpha})`);
+      g.addColorStop(.5,`rgba(168,85,247,${0.03 + 0.10*alpha})`);
       g.addColorStop(1,"rgba(0,0,0,0)");
     }
     ctx.fillStyle=g;
-    ctx.fillRect(x-18, particleTop-18, 36, particleBottom-particleTop+36);
+    ctx.fillRect(x-18, particleTop-14, 36, particleBottom-particleTop+28);
   }
   ctx.restore();
 
-  // Upper particle graph: use previous full/clean particle style, but map density correctly to pressure.
-  // Physics relation:
-  // displacement u(x,t) = -U sin(kx - wt)
-  // pressure ΔP(x,t) ∝ -du/dx = +cos(kx - wt)
-  // so positive pressure peaks must be dense/compressed.
-  const rows = 15;
-  const availableHeight = Math.max(180, particleBottom - particleTop);
-  const rowGap = availableHeight / (rows - 1);
-  const dotR = Math.max(10.5, Math.min(14.2, rowGap * 0.62));
-  const baseGap = Math.max(39, Math.min(48, w * 0.038));
-  const displacementAmpPx = 17.0 * p.A;
-  const obsRow = Math.floor(rows/2);
-  let obsParticleX = obsXBase;
-  let obsParticleY = particleTop + obsRow * rowGap;
+  // Natural particle cloud:
+  // fixed pseudo-random seed per coordinate so the page animates smoothly without jitter.
+  const particleHeight = particleBottom - particleTop;
+  const densityXGap = Math.max(8.0, Math.min(11.5, w * 0.0105));
+  const densityYGap = Math.max(8.0, Math.min(11.0, particleHeight / 13));
+  const particleR = Math.max(1.7, Math.min(3.1, w * 0.0030));
+  const displacementAmpPx = 10.0 * p.A;
 
-  const baseXs=[];
-  for(let x=xMin; x<=xMax; x+=baseGap) baseXs.push(x);
-  if(!baseXs.some(v => Math.abs(v - obsXBase) < 0.5)) baseXs.push(obsXBase);
-  baseXs.sort((a,b)=>a-b);
+  function pseudoRand(a,b){
+    return Math.abs(Math.sin(a*12.9898 + b*78.233) * 43758.5453) % 1;
+  }
+  function drawTinyParticle(x,y,r,hot){
+    const grad=ctx.createRadialGradient(x-r*.35,y-r*.45,r*.15,x,y,r);
+    if(hot){
+      grad.addColorStop(0,"rgba(255,255,255,.98)");
+      grad.addColorStop(.45,"rgba(142,235,255,.95)");
+      grad.addColorStop(1,"rgba(20,155,255,.76)");
+    }else{
+      grad.addColorStop(0,"rgba(255,255,255,.88)");
+      grad.addColorStop(.55,"rgba(120,220,255,.72)");
+      grad.addColorStop(1,"rgba(30,110,210,.50)");
+    }
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+  }
 
-  for(let row=0; row<rows; row++){
-    const y = particleTop + row * rowGap;
-    for(let i=0;i<baseXs.length;i++){
-      const base = baseXs[i];
-
-      // This sign is important. It makes dense particle columns align with +ΔP peaks.
-      const displacement = -displacementAmpPx * Math.sin(k*(base-obsXBase)-phase);
-      const x = base + displacement;
-
-      const isObs = row===obsRow && Math.abs(base-obsXBase) < 0.5;
-      if(isObs){
-        // Linked observation position: keep it exactly on the shared vertical x line
-        // so students can compare the upper particle state with lower pressure graph.
-        obsParticleX = obsXBase;
-        obsParticleY = y;
-        continue;
-      }
-
-      // Slight visual emphasis: larger/brighter near compression, smaller near rarefaction.
+  let obsParticleY = (particleTop + particleBottom) / 2;
+  for(let yy=particleTop+8, row=0; yy<=particleBottom-8; yy+=densityYGap, row++){
+    for(let base=xMin+8, col=0; base<=xMax-6; base+=densityXGap, col++){
       const pr = pressureAt(base);
-      const localR = dotR * (0.86 + 0.18 * Math.max(pr,0) - 0.08 * Math.max(-pr,0));
-      drawParticleShadow(ctx,x,y,localR);
-      drawParticleSphere(ctx,x,y,localR,"cyan");
+      // More dots in compression, fewer in expansion.
+      const keepProbability = 0.44 + 0.44 * ((pr + 1) / 2);
+      const r0 = pseudoRand(col,row);
+      if(r0 > keepProbability) continue;
+
+      // Smooth longitudinal displacement; sign chosen so dense region aligns with +ΔP.
+      const displacement = -displacementAmpPx * Math.sin(k*(base-obsXBase)-phase);
+
+      const jitterX = (pseudoRand(col+91,row+7)-0.5) * densityXGap * 0.78;
+      const jitterY = (pseudoRand(col+17,row+83)-0.5) * densityYGap * 0.78;
+      const x = base + displacement + jitterX;
+      const y = yy + jitterY;
+
+      // Leave a small space for the red observation marker.
+      if(Math.abs(x-obsXBase) < 5 && Math.abs(y-obsParticleY) < 9) continue;
+
+      const localR = particleR * (0.86 + 0.34 * ((pr + 1) / 2)) * (0.85 + pseudoRand(col+3,row+11)*0.35);
+      drawTinyParticle(x,y,localR,pr>0);
     }
   }
 
-  // Red observation particle above.
+  // Observation particle: fixed at the shared x so it can be compared with pressure graph.
   ctx.save();
-  drawParticleShadow(ctx,obsParticleX,obsParticleY,dotR+1.9);
-  drawParticleSphere(ctx,obsParticleX,obsParticleY,dotR+1.9,"red");
+  drawParticleShadow(ctx,obsXBase,obsParticleY,7.5);
+  drawParticleSphere(ctx,obsXBase,obsParticleY,7.5,"red");
   ctx.restore();
 
-  // x-axis under particle field
+  // Natural labels: อัด / Compression and ขยาย / Rarefaction
+  ctx.save();
+  ctx.font="bold 14px Sarabun, system-ui, sans-serif";
+  ctx.textAlign="center";
+  // Pick the nearest visible compression/rarefaction zones to label.
+  const labelY = particleTop - 5;
+  const compressionX = obsXBase;
+  const rarefactionX = obsXBase + wavelengthPx/2;
+  if(compressionX > xMin+40 && compressionX < xMax-40){
+    ctx.strokeStyle="rgba(34,211,238,.90)";
+    ctx.fillStyle="rgba(80,235,255,.96)";
+    ctx.beginPath();
+    ctx.moveTo(compressionX-72,labelY+8);
+    ctx.lineTo(compressionX+72,labelY+8);
+    ctx.stroke();
+    ctx.fillText("อัด (Compression)", compressionX, labelY);
+  }
+  if(rarefactionX > xMin+40 && rarefactionX < xMax-40){
+    ctx.strokeStyle="rgba(210,120,255,.88)";
+    ctx.fillStyle="rgba(220,150,255,.96)";
+    ctx.beginPath();
+    ctx.moveTo(rarefactionX-72,labelY+8);
+    ctx.lineTo(rarefactionX+72,labelY+8);
+    ctx.stroke();
+    ctx.fillText("ขยาย (Rarefaction)", rarefactionX, labelY);
+  }
+  ctx.restore();
+
+  // x-axis under particle graph
   ctx.save();
   ctx.strokeStyle="rgba(255,245,220,.94)";
   ctx.fillStyle="rgba(255,255,255,.94)";
@@ -839,26 +876,15 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
   ctx.moveTo(w-46, particleAxisY);
   ctx.lineTo(w-61, particleAxisY+9);
   ctx.stroke();
-  for(let i=0;i<14;i++){
-    const tx=(xMin-30)+i*((w-xMin-50)/(13));
+  for(let i=0;i<7;i++){
+    const tx=(xMin-30)+i*((w-xMin-50)/(6));
     ctx.beginPath();
     ctx.moveTo(tx,particleAxisY-10);
     ctx.lineTo(tx,particleAxisY+10);
     ctx.stroke();
   }
-  ctx.font="22px Sarabun, system-ui, sans-serif";
-  ctx.fillText("x", w-36, particleAxisY+30);
-  ctx.restore();
-
-  // Labels that explicitly connect the two graphs.
-  ctx.save();
-  ctx.font="bold 14px Sarabun, system-ui, sans-serif";
-  ctx.textAlign="center";
-  for(let x=xMin+18; x<=xMax-18; x+=wavelengthPx/2){
-    const pr = pressureAt(x);
-    ctx.fillStyle = pr>=0 ? "rgba(125,235,255,.90)" : "rgba(210,185,255,.84)";
-    ctx.fillText(pr>=0 ? "อัดแน่น / +ΔP" : "เบาบาง / -ΔP", x, particleTop-6);
-  }
+  ctx.font="20px Sarabun, system-ui, sans-serif";
+  ctx.fillText("x", w-36, particleAxisY+28);
   ctx.restore();
 
   // Lower pressure graph axes
@@ -902,8 +928,8 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
   ctx.restore();
 
   // ticks
-  for(let i=0;i<14;i++){
-    const tx=(xMin-30)+i*((w-xMin-50)/(13));
+  for(let i=0;i<7;i++){
+    const tx=(xMin-30)+i*((w-xMin-50)/(6));
     ctx.beginPath();
     ctx.moveTo(tx,curveMid-8);
     ctx.lineTo(tx,curveMid+8);
@@ -917,13 +943,13 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
     ctx.stroke();
   }
 
-  ctx.font="22px Sarabun, system-ui, sans-serif";
-  ctx.fillText("x", w-36, curveMid+30);
+  ctx.font="20px Sarabun, system-ui, sans-serif";
+  ctx.fillText("x", w-36, curveMid+28);
 
   ctx.save();
   ctx.translate(xMin-78, curveMid);
   ctx.rotate(-Math.PI/2);
-  ctx.font="bold 16px Sarabun, system-ui, sans-serif";
+  ctx.font="bold 15px Sarabun, system-ui, sans-serif";
   ctx.fillStyle="rgba(255,255,255,.94)";
   ctx.textAlign="center";
   ctx.fillText("ความดัน ΔP", 0, 0);
@@ -931,12 +957,12 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
 
   ctx.font="14px Sarabun, system-ui, sans-serif";
   ctx.textAlign="left";
-  ctx.fillText("+ΔP", xMin-91, curveTop+6);
+  ctx.fillText("สูง", xMin-85, curveTop+9);
   ctx.fillText("0", xMin-76, curveMid+5);
-  ctx.fillText("-ΔP", xMin-91, curveBottom+4);
+  ctx.fillText("ต่ำ", xMin-85, curveBottom+4);
   ctx.restore();
 
-  // Pressure curve: same pressureAt(x) function as particle density above.
+  // Pressure curve: same pressureAt(x) as particle density above.
   const pts=[];
   for(let x=xMin; x<=xMax; x+=4){
     const y = curveMid - pressureAt(x) * curveAmp;
@@ -952,7 +978,7 @@ function drawPressureWaveFinal(ctx, c, p, w, h){
   ctx.stroke();
   ctx.restore();
 
-  // Red marker on lower graph: same x as upper red observation particle, same pressureAt().
+  // Red pressure marker: same x as the red particle marker above.
   const graphMarkerX = obsXBase;
   const graphMarkerY = curveMid - pressureAt(graphMarkerX) * curveAmp;
   ctx.save();
